@@ -1,0 +1,19 @@
+# --- Secrets ---
+.env
+
+# --- IDE ---
+.idea/
+
+# --- Python cache ---
+__pycache__/
+*.py[cod]
+
+# --- Local DB / vector store ---
+memory.db
+*.sqlite3
+data/
+*/data/
+chroma/
+chroma_db/
+*/chroma_db/
+storage/

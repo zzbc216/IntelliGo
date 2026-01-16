@@ -1,0 +1,601 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>IntelliGo</title>
+  <style>
+    :root {
+      --bg: #0b1220;
+      --card: #121a2b;
+      --text: #e7eefc;
+      --muted: #9fb0d0;
+      --accent: #37d6a6;
+      --nav-h: 56px;
+      --composer-h: 96px;
+      --line: rgba(255,255,255,0.08);
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0; font-family: system-ui, -apple-system, Segoe UI, Roboto, "PingFang SC", "Microsoft YaHei", Arial;
+      background: var(--bg); color: var(--text);
+    }
+    .app { height: 100vh; display: flex; flex-direction: column; }
+    header {
+      padding: 14px 16px;
+      border-bottom: 1px solid var(--line);
+      background: rgba(0,0,0,0.15);
+      backdrop-filter: blur(6px);
+    }
+    header .title { font-weight: 700; letter-spacing: .2px; }
+    header .sub { color: var(--muted); font-size: 12px; margin-top: 4px; }
+
+    main {
+      flex: 1;
+      overflow: auto;
+      padding: 12px 12px calc(var(--nav-h) + var(--composer-h) + 16px);
+    }
+
+    .card {
+      background: var(--card);
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      padding: 12px;
+    }
+
+    .chat-list { display: flex; flex-direction: column; gap: 10px; }
+    .msg {
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      padding: 10px 12px;
+      max-width: 92%;
+      white-space: pre-wrap;
+      line-height: 1.45;
+    }
+    .msg.user { align-self: flex-end; background: rgba(55,214,166,0.10); }
+    .msg.ai { align-self: flex-start; background: rgba(255,255,255,0.03); }
+    .meta { color: var(--muted); font-size: 12px; margin-top: 6px; }
+
+    /* 示例问题块（比正文小一点，更精致） */
+    .suggestions {
+      align-self: flex-start;
+      max-width: 92%;
+      padding: 8px 10px;
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      background: rgba(255,255,255,0.02);
+    }
+    .suggestions-title {
+      font-size: 12px;
+      color: var(--muted);
+      margin-bottom: 6px;
+    }
+    .suggestion-list { display: flex; flex-direction: column; gap: 6px; }
+    .suggestion-btn {
+      text-align: left;
+      width: 100%;
+      padding: 8px 10px;
+      font-size: 12px;
+      line-height: 1.35;
+      border-radius: 10px;
+      border: 1px solid var(--line);
+      background: rgba(55,214,166,0.10);
+      color: var(--text);
+      cursor: pointer;
+    }
+    .suggestion-btn:hover { border-color: rgba(55,214,166,0.45); }
+    .suggestion-btn:active { transform: translateY(0.5px); }
+
+    .composer {
+      position: fixed;
+      left: 0; right: 0;
+      bottom: var(--nav-h);
+      padding: 10px 10px;
+      border-top: 1px solid var(--line);
+      background: rgba(0,0,0,0.25);
+      backdrop-filter: blur(6px);
+    }
+    .row { display: flex; gap: 8px; }
+    input[type="text"]{
+      flex: 1;
+      border-radius: 10px;
+      border: 1px solid var(--line);
+      background: rgba(255,255,255,0.04);
+      color: var(--text);
+      padding: 10px 12px;
+      outline: none;
+    }
+    button {
+      border-radius: 10px;
+      border: 1px solid var(--line);
+      background: rgba(55,214,166,0.15);
+      color: var(--text);
+      padding: 10px 12px;
+    }
+    button:disabled { opacity: .55; }
+
+    nav {
+      position: fixed;
+      left: 0; right: 0; bottom: 0;
+      height: 56px;
+      display: flex;
+      border-top: 1px solid var(--line);
+      background: rgba(0,0,0,0.35);
+      backdrop-filter: blur(8px);
+    }
+    .tab {
+      flex: 1;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: var(--muted);
+      font-weight: 600;
+      border: none;
+      background: transparent;
+    }
+    .tab.active { color: var(--accent); }
+
+    .hidden { display: none; }
+
+    .kv { display: grid; grid-template-columns: 90px 1fr; gap: 8px 10px; }
+    .k { color: var(--muted); }
+    .v { word-break: break-word; }
+    .small { font-size: 12px; color: var(--muted); }
+
+    /* 用户画像卡片样式 */
+    .profile-summary {
+      background: linear-gradient(135deg, rgba(55,214,166,0.15), rgba(55,214,166,0.05));
+      border: 1px solid rgba(55,214,166,0.3);
+      border-radius: 10px;
+      padding: 12px 14px;
+      margin-bottom: 14px;
+      font-size: 14px;
+      line-height: 1.5;
+    }
+    .profile-summary .label { color: var(--muted); font-size: 12px; margin-bottom: 4px; }
+    .profile-cards { display: flex; flex-direction: column; gap: 10px; margin-bottom: 14px; }
+    .profile-card {
+      background: rgba(255,255,255,0.03);
+      border: 1px solid var(--line);
+      border-radius: 10px;
+      padding: 10px 12px;
+    }
+    .profile-card-header {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-weight: 600;
+      margin-bottom: 8px;
+    }
+    .profile-card-icon { font-size: 18px; }
+    .profile-card-items { display: flex; flex-direction: column; gap: 6px; }
+    .profile-item {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      gap: 8px;
+      font-size: 13px;
+    }
+    .profile-item-text { flex: 1; }
+    .profile-item-source {
+      font-size: 11px;
+      color: var(--muted);
+      cursor: pointer;
+      white-space: nowrap;
+    }
+    .profile-item-source:hover { color: var(--accent); }
+    .source-detail {
+      display: none;
+      background: rgba(0,0,0,0.3);
+      border-radius: 6px;
+      padding: 8px;
+      margin-top: 4px;
+      font-size: 11px;
+      color: var(--muted);
+    }
+    .source-detail.show { display: block; }
+    .profile-empty {
+      color: var(--muted);
+      text-align: center;
+      padding: 20px;
+      font-size: 14px;
+    }
+    .btn-danger {
+      background: rgba(220,53,69,0.2);
+      border-color: rgba(220,53,69,0.4);
+    }
+    .btn-danger:hover { background: rgba(220,53,69,0.3); }
+  </style>
+</head>
+<body>
+  <div class="app">
+    <header>
+      <div class="title">IntelliGo</div>
+      <div class="sub">手机端（聊天 / 用户资料）</div>
+    </header>
+
+    <main>
+      <!-- Chat View -->
+      <section id="view-chat">
+        <div class="chat-list" id="chatList"></div>
+        <div class="small" style="margin-top:10px;">
+          提示：第一次使用会自动生成 session_id；你也可以在“用户资料”里重置会话。
+        </div>
+      </section>
+
+      <!-- Profile View -->
+      <section id="view-profile" class="hidden">
+        <div class="card">
+          <div style="font-weight:700; margin-bottom:12px;">用户画像</div>
+
+          <div class="profile-summary" id="profileSummary">
+            <div class="label">你的偏好总结</div>
+            <div id="summaryText">-</div>
+          </div>
+
+          <div class="profile-cards" id="profileCards"></div>
+
+          <div class="row" style="gap: 8px; flex-wrap: wrap;">
+            <button id="btnRefreshProfile">刷新资料</button>
+            <button id="btnReset">重置会话</button>
+            <button id="btnClearProfile" class="btn-danger">清空画像</button>
+          </div>
+
+          <div class="small" id="profileHint" style="margin-top:10px;"></div>
+
+          <div style="margin-top: 14px; padding-top: 10px; border-top: 1px solid var(--line);">
+            <div class="kv">
+              <div class="k">session_id</div>
+              <div class="v" id="sidText" style="font-size: 12px;">-</div>
+            </div>
+          </div>
+        </div>
+      </section>
+    </main>
+
+    <div class="composer" id="composer">
+      <div class="row">
+        <input id="input" type="text" placeholder="说点什么，例如：周末想去杭州玩两天，喜欢安静的地方" />
+        <button id="sendBtn">发送</button>
+      </div>
+      <div class="meta" id="meta"></div>
+    </div>
+
+    <nav>
+      <button class="tab active" id="tabChat">AI聊天</button>
+      <button class="tab" id="tabProfile">用户资料</button>
+    </nav>
+  </div>
+
+  <script>
+    const chatList = document.getElementById('chatList');
+    const input = document.getElementById('input');
+    const sendBtn = document.getElementById('sendBtn');
+    const meta = document.getElementById('meta');
+
+    const viewChat = document.getElementById('view-chat');
+    const viewProfile = document.getElementById('view-profile');
+    const tabChat = document.getElementById('tabChat');
+    const tabProfile = document.getElementById('tabProfile');
+
+    const sidText = document.getElementById('sidText');
+    const profileCards = document.getElementById('profileCards');
+    const summaryText = document.getElementById('summaryText');
+    const profileSummary = document.getElementById('profileSummary');
+    const btnRefreshProfile = document.getElementById('btnRefreshProfile');
+    const btnReset = document.getElementById('btnReset');
+    const btnClearProfile = document.getElementById('btnClearProfile');
+    const profileHint = document.getElementById('profileHint');
+
+    function uuid() {
+      return 'xxxxxxxyxxxx'.replace(/[xy]/g, c => {
+        const r = Math.random() * 16 | 0;
+        const v = c === 'x' ? r : (r & 0x3 | 0x8);
+        return v.toString(16);
+      });
+    }
+
+    function getSessionId() {
+      let sid = localStorage.getItem('intelligo_session_id');
+      if (!sid) {
+        sid = uuid();
+        localStorage.setItem('intelligo_session_id', sid);
+      }
+      return sid;
+    }
+
+    const mainEl = document.querySelector('main');
+
+    function isNearBottom(el, gap = 60) {
+      return el.scrollHeight - el.scrollTop - el.clientHeight < gap;
+    }
+
+    function scrollMainToBottom() {
+      requestAnimationFrame(() => {
+        mainEl.scrollTop = mainEl.scrollHeight;
+      });
+    }
+
+    function appendMsg(role, text) {
+      const stick = isNearBottom(mainEl);
+      const div = document.createElement('div');
+      div.className = 'msg ' + (role === 'user' ? 'user' : 'ai');
+      div.textContent = text;
+      chatList.appendChild(div);
+      if (stick) scrollMainToBottom();
+    }
+
+    function pickNRandom(arr, n) {
+      const copy = arr.slice();
+      for (let i = copy.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [copy[i], copy[j]] = [copy[j], copy[i]];
+      }
+      return copy.slice(0, Math.min(n, copy.length));
+    }
+
+    // 画像为空时：旅行/出行/穿衣 各随机 1 条
+    function fallbackExamples() {
+      const travel = [
+        '周末想去杭州玩两天，喜欢安静的地方',
+        '我想去上海玩两天，喜欢热闹一点的地方',
+        '带父母去西安两天，节奏慢一点'
+      ];
+      const commute = [
+        '从上海到苏州当天往返怎么安排最省心？',
+        '我晚上10点到广州白云机场，怎么去市区更方便？',
+        '我住在南京新街口，怎么坐地铁去中山陵？'
+      ];
+      const clothing = [
+        '明天北京穿什么合适？',
+        '下雨降温了，帮我给一套通勤穿搭建议',
+        '去海边两天需要带哪些衣服？'
+      ];
+      return [
+        pickNRandom(travel, 1)[0],
+        pickNRandom(commute, 1)[0],
+        pickNRandom(clothing, 1)[0],
+      ];
+    }
+
+    function appendSuggestions(questions, titleText = '💡 试试这些问法（点击直接发送）：') {
+      const stick = isNearBottom(mainEl);
+
+      const box = document.createElement('div');
+      box.className = 'suggestions';
+
+      const title = document.createElement('div');
+      title.className = 'suggestions-title';
+      title.textContent = titleText;
+
+      const list = document.createElement('div');
+      list.className = 'suggestion-list';
+
+      questions.forEach(q => {
+        const btn = document.createElement('button');
+        btn.className = 'suggestion-btn';
+        btn.type = 'button';
+        btn.textContent = '• ' + q;
+        btn.addEventListener('click', () => {
+          sendText(q);
+        });
+        list.appendChild(btn);
+      });
+
+      box.appendChild(title);
+      box.appendChild(list);
+      chatList.appendChild(box);
+
+      if (stick) scrollMainToBottom();
+    }
+
+    // 新增：基于画像请求后端 AI 生成示例；失败则回退本地题库
+    async function loadSuggestions() {
+      const sid = getSessionId();
+
+      // 1) 优先请求后端：/api/suggestions?session_id=...
+      try {
+        const res = await fetch('/api/suggestions?session_id=' + encodeURIComponent(sid));
+        if (res.ok) {
+          const data = await res.json();
+          if (data && Array.isArray(data.questions) && data.questions.length > 0) {
+            const qs = data.questions.slice(0, 3);
+            const title = data.title || '💡 为你生成的 3 个问题（点击发送）：';
+            appendSuggestions(qs, title);
+            return;
+          }
+        }
+      } catch (_) {
+        // ignore，走 fallback
+      }
+
+      // 2) 回退：如果你暂时还没做后端接口，就用“旅行/出行/穿衣”随机示例
+      appendSuggestions(fallbackExamples(), '💡 试试这些问法（点击直接发送）：');
+    }
+
+    async function sendText(message) {
+      const msg = (message ?? input.value).trim();
+      if (!msg) return;
+
+      const sid = getSessionId();
+      appendMsg('user', msg);
+      scrollMainToBottom();
+      input.value = '';
+      sendBtn.disabled = true;
+      meta.textContent = '思考中...';
+
+      try {
+        const res = await fetch('/api/chat', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ session_id: sid, message: msg })
+        });
+        if (!res.ok) {
+          const err = await res.text();
+          throw new Error(err);
+        }
+        const data = await res.json();
+        appendMsg('ai', data.reply);
+        meta.textContent = `intent=${data.intent_type || '-'} node=${data.current_node || '-'}`;
+      } catch (e) {
+        appendMsg('ai', '请求失败：' + (e?.message || e));
+        meta.textContent = '出错了';
+      } finally {
+        sendBtn.disabled = false;
+      }
+    }
+
+    async function refreshProfile() {
+      const sid = getSessionId();
+      sidText.textContent = sid;
+      profileHint.textContent = '加载中...';
+      try {
+        const res = await fetch('/api/profile?session_id=' + encodeURIComponent(sid));
+        if (!res.ok) throw new Error(await res.text());
+        const data = await res.json();
+        renderFormattedProfile(data.formatted || {});
+        profileHint.textContent = '已更新';
+      } catch (e) {
+        profileHint.textContent = '加载失败：' + (e?.message || e);
+      }
+    }
+
+    function renderFormattedProfile(formatted) {
+      const { summary, cards } = formatted;
+
+      if (summary) {
+        summaryText.textContent = summary;
+        profileSummary.style.display = 'block';
+      } else {
+        summaryText.textContent = '暂无偏好记录';
+        profileSummary.style.display = 'block';
+      }
+
+      profileCards.innerHTML = '';
+
+      if (!cards || cards.length === 0) {
+        profileCards.innerHTML = '<div class="profile-empty">还没有记录你的偏好，聊聊天就会自动学习~</div>';
+        return;
+      }
+
+      cards.forEach(card => {
+        const cardEl = document.createElement('div');
+        cardEl.className = 'profile-card';
+
+        const headerEl = document.createElement('div');
+        headerEl.className = 'profile-card-header';
+        headerEl.innerHTML = `<span class="profile-card-icon">${card.icon}</span><span>${card.title}</span>`;
+        cardEl.appendChild(headerEl);
+
+        const itemsEl = document.createElement('div');
+        itemsEl.className = 'profile-card-items';
+
+        card.items.forEach((item) => {
+          const itemWrapper = document.createElement('div');
+
+          const itemEl = document.createElement('div');
+          itemEl.className = 'profile-item';
+
+          const textEl = document.createElement('span');
+          textEl.className = 'profile-item-text';
+          textEl.textContent = item.text;
+
+          const sourceBtn = document.createElement('span');
+          sourceBtn.className = 'profile-item-source';
+          sourceBtn.textContent = '来源';
+          sourceBtn.onclick = () => {
+            const detail = itemWrapper.querySelector('.source-detail');
+            detail.classList.toggle('show');
+          };
+
+          itemEl.appendChild(textEl);
+          itemEl.appendChild(sourceBtn);
+          itemWrapper.appendChild(itemEl);
+
+          const sourceDetail = document.createElement('div');
+          sourceDetail.className = 'source-detail';
+          if (item.source) {
+            sourceDetail.innerHTML = `
+              <div><b>原始记录：</b>${item.source.original || '-'}</div>
+              <div><b>类别：</b>${item.source.category || '-'}</div>
+              <div><b>时间：</b>${item.source.timestamp ? item.source.timestamp.split('T')[0] : '-'}</div>
+              <div><b>来源：</b>${item.source.source_type || '-'}</div>
+            `;
+          }
+          itemWrapper.appendChild(sourceDetail);
+          itemsEl.appendChild(itemWrapper);
+        });
+
+        cardEl.appendChild(itemsEl);
+        profileCards.appendChild(cardEl);
+      });
+    }
+
+    async function clearProfile() {
+      if (!confirm('确定要清空所有用户画像吗？此操作不可恢复。')) return;
+
+      profileHint.textContent = '清空中...';
+      try {
+        const res = await fetch('/api/clear_profile', { method: 'POST' });
+        if (!res.ok) throw new Error(await res.text());
+
+        summaryText.textContent = '暂无偏好记录';
+        profileCards.innerHTML = '<div class="profile-empty">还没有记录你的偏好，聊聊天就会自动学习~</div>';
+        profileHint.textContent = '用户画像已清空';
+      } catch (e) {
+        profileHint.textContent = '清空失败：' + (e?.message || e);
+      }
+    }
+
+    async function resetSession() {
+      const sid = getSessionId();
+      profileHint.textContent = '重置中...';
+      try {
+        const res = await fetch('/api/reset?session_id=' + encodeURIComponent(sid), { method: 'POST' });
+        if (!res.ok) throw new Error(await res.text());
+
+        localStorage.removeItem('intelligo_session_id');
+        const newSid = getSessionId();
+        sidText.textContent = newSid;
+        profileHint.textContent = '已重置（新会话）';
+        chatList.innerHTML = '';
+      } catch (e) {
+        profileHint.textContent = '重置失败：' + (e?.message || e);
+      }
+    }
+
+    tabChat.addEventListener('click', () => {
+      tabChat.classList.add('active');
+      tabProfile.classList.remove('active');
+      viewChat.classList.remove('hidden');
+      viewProfile.classList.add('hidden');
+      document.getElementById('composer').classList.remove('hidden');
+    });
+
+    tabProfile.addEventListener('click', async () => {
+      tabProfile.classList.add('active');
+      tabChat.classList.remove('active');
+      viewProfile.classList.remove('hidden');
+      viewChat.classList.add('hidden');
+      document.getElementById('composer').classList.add('hidden');
+      await refreshProfile();
+    });
+
+    sendBtn.addEventListener('click', () => sendText());
+    input.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') sendText();
+    });
+    btnRefreshProfile.addEventListener('click', refreshProfile);
+    btnReset.addEventListener('click', resetSession);
+    btnClearProfile.addEventListener('click', clearProfile);
+
+    (function init() {
+      const sid = getSessionId();
+      sidText.textContent = sid;
+
+      appendMsg('ai', '今天想去哪？😄');
+      loadSuggestions(); // 关键：启动时加载「AI/回退」示例
+    })();
+  </script>
+</body>
+</html>
